@@ -5,7 +5,7 @@
 #include "user.h"
 #include "fcntl.h"
 
-char *argv[] = { "sh", 0 };
+char *argv[] = {"ssu_login", "sh", 0 };
 
 int
 main(void)
@@ -20,13 +20,14 @@ main(void)
   dup(0);  // stderr
 
   for(;;){
-    printf(1, "init: starting sh\n");
+    printf(1, "init: starting login\n");
     pid = fork();
     if(pid < 0){
       printf(1, "init: fork failed\n");
       exit();
     }
     if(pid == 0){
+      //exec("ssu_login",argv);
       exec("sh", argv);
       printf(1, "init: exec sh failed\n");
       exit();
