@@ -186,7 +186,7 @@ UPROGS=\
 	_ssu_login\
 	_memsizetest\
 	_ssu_trace\
-
+ 
 fs.img: mkfs README list.txt $(UPROGS)
 	./mkfs fs.img README list.txt $(UPROGS)
 
