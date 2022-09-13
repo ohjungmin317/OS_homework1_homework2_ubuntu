@@ -101,7 +101,7 @@ sys_memsize(void)
 }
 
 int
-sys_trace(void)
+sys_trace(void) 
 {
-  return 1;
+  return 0;
 }
