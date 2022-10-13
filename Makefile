@@ -90,6 +90,10 @@ ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]nopie'),)
 CFLAGS += -fno-pie -nopie
 endif
 
+ifeq ($(debug),1)
+CFLAGS += -DDEBUG # fix the homework3 and use the make command debug = 1 
+endif
+
 xv6.img: bootblock kernel
 	dd if=/dev/zero of=xv6.img count=10000
 	dd if=bootblock of=xv6.img conv=notrunc
@@ -181,14 +185,10 @@ UPROGS=\
 	_usertests\
 	_wc\
 	_zombie\
-	_helloworld\
-	_hcat\
-	_ssu_login\
-	_memsizetest\
-	_ssu_trace\
+	_sdebug\
  
-fs.img: mkfs README list.txt $(UPROGS)
-	./mkfs fs.img README list.txt $(UPROGS)
+fs.img: mkfs README $(UPROGS)
+	./mkfs fs.img README $(UPROGS)
 
 -include *.d
 
@@ -201,7 +201,7 @@ clean:
 
 # make a printout
 FILES = $(shell grep -v '^\#' runoff.list)
-PRINT = runoff.list runoff.spec README list.txt toc.hdr toc.ftr $(FILES)
+PRINT = runoff.list runoff.spec README toc.hdr toc.ftr $(FILES)
 
 xv6.pdf: $(PRINT)
 	./runoff
@@ -222,7 +222,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 2
+CPUS := 1 # fix the homework 3 for assume the cpu core 1 
 endif
 QEMUOPTS = -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512 $(QEMUEXTRA)
 
@@ -255,8 +255,8 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 EXTRA=\
 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
-	printf.c umalloc.c helloworld.c hcat.c ssu_login.c memsizetest.c ssu_trace.c\
-	README list.txt dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
+	printf.c umalloc.c sdebug.c\
+	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\
 
 dist:

@@ -1,7 +1,7 @@
 #include "types.h"
 #include "user.h"
 #include "stat.h"
-#define SIZE 2048
+#define SIZE 2048 
 
 int main(void)
 {

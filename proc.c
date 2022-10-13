@@ -7,9 +7,16 @@
 #include "proc.h"
 #include "spinlock.h"
 
+/* fix the homework 3 for scheduler */
+#define TIME_SLICE 10000000 // define value for TIME_SLICE 
+#define NULL ((void *)0)
+int weight = 1; // global variable for weight 
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
+  /* fix the homework 3 for scheduler */
+  long long min_priority; // define for variable for ptable struct (use for scheduler min_priority)
 } ptable;
 
 static struct proc *initproc;
@@ -19,6 +26,72 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+
+/* ssu_schedule when scheduler that gives a high weight so that newly created 
+   processes are not excluded from the process execution flow */
+
+/* fix the homework 3 for scheduler */
+struct proc *ssu_schedule()
+{
+  struct proc *p;
+  struct proc *ret = NULL;
+
+  for(p=ptable.proc; p < &ptable.proc[NPROC]; p++) // loop for ptable.proc
+  {
+    if(p->state == RUNNABLE ) // when p struct state RUNNABLE 
+    {
+      /* selects the process with the priority among the processes in 
+      RUNNABLE state as the next process to be executed */
+      if (ret == NULL || (ret->priority > p->priority))  
+      {
+        ret = p;
+      }
+    }
+  }
+
+  /* proc.c file define the debugging */
+  #ifdef DEBUG
+  if(ret)
+  cprintf("PID: %d, NAME: %s, WEIGHT: %d, PRIORITY: %d\n", ret->pid, ret->name, ret->weight, ret->priority);
+  #endif
+   return ret;
+}
+
+/* The priority value is updated according to the following rules whenever the schedule() is called */
+
+/* fix the homework 3 for scheduler */
+void update_priority(struct proc *proc)
+{
+   proc->priority = proc->priority + (TIME_SLICE/proc->weight); // new_priority = old_priority + (time_slice / weight)
+}
+
+/* The min_priority value is updated according to the following rules whenever the schedule() is called */
+
+/* fix the homework 3 for scheduler */
+void update_min_priority()
+{
+  struct proc *min = NULL;
+  struct proc *p;
+  
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) // loop for ptable.proc
+  {
+    if(p->state == RUNNABLE) // when p struct state RUNNABLE 
+    {
+      /* selects the process with the lowest priority among the processes in 
+      RUNNABLE state as the next process to be executed */
+      if(min == NULL || (min->priority > p->priority)) min = p; //
+    }
+  }
+  if (min != NULL) ptable.min_priority = min->priority;
+}
+
+/* Assign min_priority function */
+
+/* fix the homework 3 for scheduler */
+void assign_min_priority(struct proc *proc)
+{
+  proc->priority = ptable.min_priority;
+}
 
 void
 pinit(void)
@@ -86,8 +159,15 @@ allocproc(void)
   return 0;
 
 found:
+/* fix the homework 3 for scheduler */
+
+  p->weight = weight; // weight values are increasing 1 order from according to the process creation order 
+  weight++; // weight value order from increase 1 
   p->state = EMBRYO;
   p->pid = nextpid++;
+
+/* fix the homework 3 for scheduler */
+  assign_min_priority(p); 
 
   release(&ptable.lock);
 
@@ -123,6 +203,8 @@ userinit(void)
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
+  ptable.min_priority = 3; /* fix the homework 3 for scheduler */
+
   p = allocproc();
   
   initproc = p;
@@ -138,7 +220,7 @@ userinit(void)
   p->tf->eflags = FL_IF;
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
-
+  
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
@@ -198,9 +280,9 @@ fork(void)
   }
   np->sz = curproc->sz;
   np->parent = curproc;
-  *(np->tf) = *(curproc->tf);
+  *np->tf = *curproc->tf;
 
-  np->tracemask = curproc->tracemask; // copy the tracemark
+  // np->tracemask = curproc->tracemask; // copy the tracemark for trace system call
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -334,9 +416,17 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+      
+      /* fix the homework 3 for scheduler */
+        p = ssu_schedule(); // when scheduler function execute ssu_scheduler process execute (cf. scheduler that gives weight)
+        if(p == NULL) {
+                release(&ptable.lock);
+                continue;
+        }
+
+    // for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    //   if(p->state != RUNNABLE)
+    //     continue;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -348,10 +438,17 @@ scheduler(void)
       swtch(&(c->scheduler), p->context);
       switchkvm();
 
+      /* fix the homework 3 for scheduler */
+
+      /* first of all when scheduler execute update_priority and explore the process of min_priority 
+      and then update min_prioity */
+      update_priority(p);
+      update_min_priority();
+
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
-    }
+   // }
     release(&ptable.lock);
 
   }
@@ -456,14 +553,22 @@ sleep(void *chan, struct spinlock *lk)
 //PAGEBREAK!
 // Wake up all processes sleeping on chan.
 // The ptable lock must be held.
+
+/* fix the homework 3 for scheduler */
+
+/* If the priority value is assigned from 0 when wake up a process, the process can be exclusively executed
+  so the smallest value among the priority values of the managed process is given */
 static void
 wakeup1(void *chan)
 {
   struct proc *p;
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
-      p->state = RUNNABLE;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state == SLEEPING && p->chan == chan){
+      p->state = RUNNABLE; // SLEEPING state -> RUNNABLE state assign min_priority 
+      assign_min_priority(p); 
+      }
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -533,4 +638,16 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+/* fix the homework 3 for scheduler */
+
+/* Ptable variables that require access in various process use the concept of mutual exclusion */
+void do_weightset(int weight)
+{
+  acquire(&ptable.lock);
+
+  myproc()->weight = weight;
+
+  release(&ptable.lock);
 }
