@@ -43,5 +43,6 @@ main(int argc, char *argv[])
 exit(); //pid 3 ssu_trace: trap 14 err 5 on cpu 1 eip 0xffffffff addr 0xffffffff--kill proc
 
 return 0;
+
  }
 }
